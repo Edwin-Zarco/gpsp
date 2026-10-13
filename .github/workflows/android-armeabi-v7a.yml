@@ -1,11 +1,9 @@
 # Builds the gpsp libretro core for Android 32-bit ARM (armeabi-v7a)
 # using the project's own NDK build files in jni/ (Android.mk / Application.mk).
 #
-# Notes:
-# - Application.mk pins NDK_TOOLCHAIN_VERSION := 4.9, which only exists in
-#   NDK r16b and earlier, so this workflow uses NDK r16b.
-# - The produced library is named after the core, the same way libretro
-#   packaging expects it: gpsp_libretro_android.so
+# Uses the NDK preinstalled on the runner (ANDROID_NDK_HOME), with no version pin,
+# as the libretro docs recommend ("install the latest Android NDK").
+# The library is named after the core: gpsp_libretro_android.so
 
 name: Android armeabi-v7a
 
@@ -18,8 +16,6 @@ permissions:
   contents: read
 
 env:
-  NDK_VERSION: r16b
-  NDK_DIR: ${{ github.workspace }}/../android-ndk-r16b
   CORE_NAME: gpsp
 
 jobs:
@@ -31,40 +27,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Cache Android NDK
-        id: cache-ndk
-        uses: actions/cache@v6
-        with:
-          path: ${{ env.NDK_DIR }}
-          key: android-ndk-${{ env.NDK_VERSION }}-linux-x86_64
-
-      - name: Download Android NDK
-        if: steps.cache-ndk.outputs.cache-hit != 'true'
+      - name: Show preinstalled NDK
         run: |
-          cd "$(dirname "$NDK_DIR")"
-          curl -fL -o ndk.zip \
-            "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
-          unzip -q ndk.zip
-          rm -f ndk.zip
-          # The zip extracts to android-ndk-<version>, which is NDK_DIR's name.
-          test -x "$NDK_DIR/ndk-build"
-
-      - name: Set NDK path
-        run: echo "$NDK_DIR" >> "$GITHUB_PATH"
-
-      - name: Show NDK toolchain
-        run: |
-          ls "$NDK_DIR/toolchains" | grep -i arm-linux-androideabi || true
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          echo "ANDROID_NDK_LATEST_HOME=$ANDROID_NDK_LATEST_HOME"
+          cat "$ANDROID_NDK_HOME/source.properties"
 
       - name: Build core with ndk-build
+        working-directory: jni
         run: |
-          ndk-build APP_ABI=armeabi-v7a -j"$(nproc)"
+          "$ANDROID_NDK_HOME/ndk-build" APP_ABI=armeabi-v7a -j"$(nproc)"
 
       - name: Collect output
         run: |
-          echo "Contents of libs/armeabi-v7a:"
-          ls -la libs/armeabi-v7a/ || true
-          so=$(find libs/armeabi-v7a -maxdepth 1 -name '*.so' | head -n1)
+          echo "Contents of jni/libs/armeabi-v7a:"
+          ls -la jni/libs/armeabi-v7a/ || true
+          so=$(find jni/libs/armeabi-v7a -maxdepth 1 -name '*.so' | head -n1)
           if [ -z "$so" ]; then
             echo "ERROR: ndk-build produced no .so file. See the Build core step above." >&2
             exit 1
