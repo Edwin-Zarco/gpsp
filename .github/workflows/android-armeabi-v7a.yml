@@ -10,7 +10,7 @@ permissions:
 
 env:
   CORE_NAME: gpsp
-  NDK_VERSION: r23b
+  NDK_VERSION: r23c
 
 jobs:
   build-armeabi-v7a:
