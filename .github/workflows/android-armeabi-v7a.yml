@@ -1,0 +1,81 @@
+# Builds the gpsp libretro core for Android 32-bit ARM (armeabi-v7a)
+# using the project's own NDK build files in jni/ (Android.mk / Application.mk).
+#
+# Notes:
+# - Application.mk pins NDK_TOOLCHAIN_VERSION := 4.9, which only exists in
+#   NDK r16b and earlier, so this workflow uses NDK r16b.
+# - The produced library is named after the core, the same way libretro
+#   packaging expects it: gpsp_libretro_android.so
+
+name: Android armeabi-v7a
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NDK_VERSION: r16b
+  NDK_DIR: ${{ github.workspace }}/../android-ndk-r16b
+  CORE_NAME: gpsp
+
+jobs:
+  build-armeabi-v7a:
+    name: Build (armeabi-v7a)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NDK_DIR }}
+          key: android-ndk-${{ env.NDK_VERSION }}-linux-x86_64
+
+      - name: Download Android NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
+        run: |
+          cd "$(dirname "$NDK_DIR")"
+          curl -fL -o ndk.zip \
+            "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+          unzip -q ndk.zip
+          mv "android-ndk-${NDK_VERSION}" "$NDK_DIR"
+          rm -f ndk.zip
+
+      - name: Set NDK path
+        run: echo "$NDK_DIR" >> "$GITHUB_PATH"
+
+      - name: Show NDK toolchain
+        run: |
+          ls "$NDK_DIR/toolchains" | grep -i arm-linux-androideabi || true
+
+      - name: Build core with ndk-build
+        run: |
+          ndk-build APP_ABI=armeabi-v7a -j"$(nproc)"
+
+      - name: Collect output
+        run: |
+          echo "Contents of libs/armeabi-v7a:"
+          ls -la libs/armeabi-v7a/ || true
+          so=$(find libs/armeabi-v7a -maxdepth 1 -name '*.so' | head -n1)
+          if [ -z "$so" ]; then
+            echo "ERROR: ndk-build produced no .so file. See the Build core step above." >&2
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$so" "dist/${CORE_NAME}_libretro_android.so"
+          file "dist/${CORE_NAME}_libretro_android.so"
+          readelf -h "dist/${CORE_NAME}_libretro_android.so" | grep -E 'Class|Machine'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.CORE_NAME }}_libretro_android_armeabi-v7a
+          path: dist/${{ env.CORE_NAME }}_libretro_android.so
+          if-no-files-found: error
