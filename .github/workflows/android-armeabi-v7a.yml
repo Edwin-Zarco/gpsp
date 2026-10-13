@@ -1,10 +1,3 @@
-# Builds the gpsp libretro core for Android 32-bit ARM (armeabi-v7a)
-# using the project's own NDK build files in jni/ (Android.mk / Application.mk).
-#
-# Forces NDK r23b (downloaded from dl.google.com) instead of the runner's
-# preinstalled NDK, and points ANDROID_NDK_HOME at it.
-# The library is named after the core: gpsp_libretro_android.so
-
 name: Android armeabi-v7a
 
 on:
@@ -21,60 +14,37 @@ env:
 
 jobs:
   build-armeabi-v7a:
-    name: Build (armeabi-v7a)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
-      - name: Cache NDK r23b
+      - uses: actions/cache@v6
         id: cache-ndk
-        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/android-ndk-${{ env.NDK_VERSION }}
           key: android-ndk-${{ env.NDK_VERSION }}-linux
 
-      - name: Download NDK r23b
-        if: steps.cache-ndk.outputs.cache-hit != 'true'
+      - if: steps.cache-ndk.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
-          curl -fL -o ndk.zip \
-            "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
-          unzip -q ndk.zip
-          rm -f ndk.zip
+          curl -fL -o ndk.zip "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
+          unzip -q ndk.zip && rm ndk.zip
 
-      - name: Use NDK r23b
-        run: |
-          echo "ANDROID_NDK_HOME=${RUNNER_TEMP}/android-ndk-${NDK_VERSION}" >> "$GITHUB_ENV"
+      - run: echo "ANDROID_NDK_HOME=${RUNNER_TEMP}/android-ndk-${NDK_VERSION}" >> "$GITHUB_ENV"
 
-      - name: Show NDK
+      - working-directory: jni
         run: |
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-          cat "$ANDROID_NDK_HOME/source.properties"
+          "$ANDROID_NDK_HOME/ndk-build" APP_ABI=armeabi-v7a -j"$(nproc)" \
+            APP_CFLAGS="-O3 -fomit-frame-pointer" \
+            APP_CPPFLAGS="-O3 -fomit-frame-pointer"
 
-      - name: Build core with ndk-build
-        working-directory: jni
-        run: |
-          "$ANDROID_NDK_HOME/ndk-build" APP_ABI=armeabi-v7a -j"$(nproc)"
-
-      - name: Collect output
-        run: |
-          echo "All armeabi-v7a .so files in the workspace:"
-          find "$GITHUB_WORKSPACE" -path '*/libs/armeabi-v7a/*.so' -print || true
+      - run: |
           so=$(find "$GITHUB_WORKSPACE" -path '*/libs/armeabi-v7a/*.so' | head -n1)
-          if [ -z "$so" ]; then
-            echo "ERROR: no armeabi-v7a .so found anywhere in the workspace. See the Build core step above." >&2
-            exit 1
-          fi
-          echo "Using: $so"
           mkdir -p dist
           cp "$so" "dist/${CORE_NAME}_libretro_android.so"
-          file "dist/${CORE_NAME}_libretro_android.so"
-          readelf -h "dist/${CORE_NAME}_libretro_android.so" | grep -E 'Class|Machine'
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ env.CORE_NAME }}_libretro_android_armeabi-v7a
           path: dist/${{ env.CORE_NAME }}_libretro_android.so
