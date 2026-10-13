@@ -40,13 +40,14 @@ jobs:
 
       - name: Collect output
         run: |
-          echo "Contents of jni/libs/armeabi-v7a:"
-          ls -la jni/libs/armeabi-v7a/ || true
-          so=$(find jni/libs/armeabi-v7a -maxdepth 1 -name '*.so' | head -n1)
+          echo "All armeabi-v7a .so files in the workspace:"
+          find "$GITHUB_WORKSPACE" -path '*/libs/armeabi-v7a/*.so' -print || true
+          so=$(find "$GITHUB_WORKSPACE" -path '*/libs/armeabi-v7a/*.so' | head -n1)
           if [ -z "$so" ]; then
-            echo "ERROR: ndk-build produced no .so file. See the Build core step above." >&2
+            echo "ERROR: no armeabi-v7a .so found anywhere in the workspace. See the Build core step above." >&2
             exit 1
           fi
+          echo "Using: $so"
           mkdir -p dist
           cp "$so" "dist/${CORE_NAME}_libretro_android.so"
           file "dist/${CORE_NAME}_libretro_android.so"
