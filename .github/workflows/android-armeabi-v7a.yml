@@ -45,8 +45,9 @@ jobs:
           curl -fL -o ndk.zip \
             "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
           unzip -q ndk.zip
-          mv "android-ndk-${NDK_VERSION}" "$NDK_DIR"
           rm -f ndk.zip
+          # The zip extracts to android-ndk-<version>, which is NDK_DIR's name.
+          test -x "$NDK_DIR/ndk-build"
 
       - name: Set NDK path
         run: echo "$NDK_DIR" >> "$GITHUB_PATH"
